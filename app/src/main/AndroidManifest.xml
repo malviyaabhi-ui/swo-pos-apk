@@ -22,10 +22,6 @@
             </intent-filter>
         </activity>
 
-        <queries>
-            <package android:name="recieptservice.com.recieptservice" />
-        </queries>
-
     </application>
 
 </manifest>
