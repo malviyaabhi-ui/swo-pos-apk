@@ -12,6 +12,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebStorage
 import androidx.appcompat.app.AppCompatActivity
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,23 +37,16 @@ class MainActivity : AppCompatActivity() {
             val clazz = Class.forName("recieptservice.com.recieptservice.PrinterInterface\$Stub")
             val asInterface = clazz.getMethod("asInterface", IBinder::class.java)
             val printer = asInterface.invoke(null, binder)
-            val printerClass = printer.javaClass
-
             val paramTypes = args.map { arg ->
                 when (arg) {
                     is Boolean -> Boolean::class.javaPrimitiveType!!
                     is Int -> Int::class.javaPrimitiveType!!
                     is Float -> Float::class.javaPrimitiveType!!
-                    is String -> String::class.java
-                    else -> arg?.javaClass ?: String::class.java
+                    else -> String::class.java
                 }
             }.toTypedArray()
-
-            val m = printerClass.getMethod(method, *paramTypes)
-            m.invoke(printer, *args)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+            printer.javaClass.getMethod(method, *paramTypes).invoke(printer, *args)
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -61,18 +55,19 @@ class MainActivity : AppCompatActivity() {
 
         try {
             val intent = Intent().apply {
-                setClassName(
-                    "recieptservice.com.recieptservice",
-                    "recieptservice.com.recieptservice.service.PrinterService"
-                )
+                setClassName("recieptservice.com.recieptservice",
+                    "recieptservice.com.recieptservice.service.PrinterService")
             }
             startService(intent)
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
 
         webView = WebView(this).apply {
+            // Clear all cache so we always get fresh app.js
+            clearCache(true)
+            clearHistory()
+            WebStorage.getInstance().deleteAllData()
+
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -80,13 +75,15 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 setSupportZoom(false)
-                userAgentString = settings.userAgentString + " SWOPOSNative/1.0"
+                cacheMode = WebSettings.LOAD_NO_CACHE
+                userAgentString = userAgentString + " SWOPOSNative/1.0"
             }
+
             addJavascriptInterface(PrintBridge(), "NativePrinter")
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    evaluateJavascript("window.NATIVE_PRINT = true;", null)
+                    evaluateJavascript("window.NATIVE_PRINT = true; window.NATIVE_PRINTER_READY = true;", null)
                 }
             }
             loadUrl("https://pos.socialwifionline.com")
@@ -106,11 +103,8 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun printMultiple(codesJson: String, planName: String, venueName: String, validity: String) {
             try {
-                val codes = codesJson.trim()
-                    .removePrefix("[").removeSuffix("]")
-                    .split(",")
-                    .map { it.trim().removeSurrounding("\"") }
-                    .filter { it.isNotEmpty() }
+                val codes = codesJson.trim().removePrefix("[").removeSuffix("]")
+                    .split(",").map { it.trim().removeSurrounding("\"") }.filter { it.isNotEmpty() }
                 runOnUiThread {
                     codes.forEachIndexed { i, code ->
                         if (i > 0) Thread.sleep(800)
@@ -134,7 +128,7 @@ class MainActivity : AppCompatActivity() {
         callPrinter("printText", "--------------------------------\n")
         callPrinter("setAlignment", 0)
         callPrinter("setTextSize", 13f)
-        callPrinter("printText", "$planName  ·  $validity\n")
+        callPrinter("printText", "$planName  $validity\n")
         callPrinter("printText", "--------------------------------\n")
         callPrinter("setAlignment", 1)
         callPrinter("setTextSize", 9f)
@@ -151,7 +145,7 @@ class MainActivity : AppCompatActivity() {
         callPrinter("printText", "Enter code at WiFi login page\n")
         callPrinter("printText", "--------------------------------\n")
         callPrinter("printText", "Issued: $date\n")
-        callPrinter("printText", "Thank you  ·  SocialWiFiOnline\n")
+        callPrinter("printText", "Thank you SocialWiFiOnline\n")
         callPrinter("nextLine", 3)
         callPrinter("endWork")
     }
