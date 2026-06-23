@@ -10,43 +10,26 @@ import android.os.IBinder
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebStorage
 import androidx.appcompat.app.AppCompatActivity
+import recieptservice.com.recieptservice.PrinterInterface
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private var printerBinder: IBinder? = null
+    private var printer: PrinterInterface? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            printerBinder = service
+            printer = PrinterInterface.Stub.asInterface(service)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
-            printerBinder = null
+            printer = null
         }
-    }
-
-    private fun callPrinter(method: String, vararg args: Any?) {
-        val binder = printerBinder ?: return
-        try {
-            val clazz = Class.forName("recieptservice.com.recieptservice.PrinterInterface\$Stub")
-            val asInterface = clazz.getMethod("asInterface", IBinder::class.java)
-            val printer = asInterface.invoke(null, binder)
-            val paramTypes = args.map { arg ->
-                when (arg) {
-                    is Boolean -> Boolean::class.javaPrimitiveType!!
-                    is Int -> Int::class.javaPrimitiveType!!
-                    is Float -> Float::class.javaPrimitiveType!!
-                    else -> String::class.java
-                }
-            }.toTypedArray()
-            printer.javaClass.getMethod(method, *paramTypes).invoke(printer, *args)
-        } catch (e: Exception) { e.printStackTrace() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -63,11 +46,9 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { e.printStackTrace() }
 
         webView = WebView(this).apply {
-            // Clear all cache so we always get fresh app.js
             clearCache(true)
             clearHistory()
             WebStorage.getInstance().deleteAllData()
-
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -76,14 +57,13 @@ class MainActivity : AppCompatActivity() {
                 loadWithOverviewMode = true
                 setSupportZoom(false)
                 cacheMode = WebSettings.LOAD_NO_CACHE
-                userAgentString = userAgentString + " SWOPOSNative/1.0"
+                userAgentString = "$userAgentString SWOPOSNative/1.0"
             }
-
             addJavascriptInterface(PrintBridge(), "NativePrinter")
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    evaluateJavascript("window.NATIVE_PRINT = true; window.NATIVE_PRINTER_READY = true;", null)
+                    evaluateJavascript("window.NATIVE_PRINT = true;", null)
                 }
             }
             loadUrl("https://pos.socialwifionline.com")
@@ -93,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
     inner class PrintBridge {
         @JavascriptInterface
-        fun isAvailable(): Boolean = printerBinder != null
+        fun isAvailable(): Boolean = printer != null
 
         @JavascriptInterface
         fun print(code: String, planName: String, venueName: String, validity: String) {
@@ -116,38 +96,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun printVoucher(code: String, planName: String, venueName: String, validity: String) {
-        val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
-        callPrinter("beginWork")
-        callPrinter("setAlignment", 1)
-        callPrinter("setTextBold", true)
-        callPrinter("setTextSize", 20f)
-        callPrinter("printText", "$venueName\n")
-        callPrinter("setTextBold", false)
-        callPrinter("setTextSize", 9f)
-        callPrinter("printText", "WiFi Access Voucher\n")
-        callPrinter("printText", "--------------------------------\n")
-        callPrinter("setAlignment", 0)
-        callPrinter("setTextSize", 13f)
-        callPrinter("printText", "$planName  $validity\n")
-        callPrinter("printText", "--------------------------------\n")
-        callPrinter("setAlignment", 1)
-        callPrinter("setTextSize", 9f)
-        callPrinter("printText", "YOUR ACCESS CODE\n")
-        callPrinter("setTextBold", true)
-        callPrinter("setTextDoubleWidth", true)
-        callPrinter("setTextDoubleHeight", true)
-        callPrinter("setTextSize", 24f)
-        callPrinter("printText", "$code\n")
-        callPrinter("setTextDoubleWidth", false)
-        callPrinter("setTextDoubleHeight", false)
-        callPrinter("setTextBold", false)
-        callPrinter("setTextSize", 8f)
-        callPrinter("printText", "Enter code at WiFi login page\n")
-        callPrinter("printText", "--------------------------------\n")
-        callPrinter("printText", "Issued: $date\n")
-        callPrinter("printText", "Thank you SocialWiFiOnline\n")
-        callPrinter("nextLine", 3)
-        callPrinter("endWork")
+        val p = printer ?: return
+        try {
+            val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+            p.beginWork()
+            p.setAlignment(1)
+            p.setTextBold(true)
+            p.setTextSize(20f)
+            p.printText("$venueName\n")
+            p.setTextBold(false)
+            p.setTextSize(9f)
+            p.printText("WiFi Access Voucher\n")
+            p.printText("--------------------------------\n")
+            p.setAlignment(0)
+            p.setTextSize(13f)
+            p.printText("$planName  $validity\n")
+            p.printText("--------------------------------\n")
+            p.setAlignment(1)
+            p.setTextSize(9f)
+            p.printText("YOUR ACCESS CODE\n")
+            p.setTextBold(true)
+            p.setTextDoubleWidth(true)
+            p.setTextDoubleHeight(true)
+            p.setTextSize(24f)
+            p.printText("$code\n")
+            p.setTextDoubleWidth(false)
+            p.setTextDoubleHeight(false)
+            p.setTextBold(false)
+            p.setTextSize(8f)
+            p.printText("Enter code at WiFi login page\n")
+            p.printText("--------------------------------\n")
+            p.printText("Issued: $date\n")
+            p.printText("Thank you  SocialWiFiOnline\n")
+            p.nextLine(3)
+            p.endWork()
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     override fun onBackPressed() {
