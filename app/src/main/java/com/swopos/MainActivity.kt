@@ -93,6 +93,11 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) { e.printStackTrace() }
         }
+
+        @JavascriptInterface
+        fun printCredentials(username: String, password: String, planName: String, venueName: String, validity: String) {
+            runOnUiThread { printCreds(username, password, planName, venueName, validity) }
+        }
     }
 
     private fun printVoucher(code: String, planName: String, venueName: String, validity: String) {
@@ -101,8 +106,6 @@ class MainActivity : AppCompatActivity() {
             val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
             p.beginWork()
             p.setDark(5)
-
-            // Header
             p.setAlignment(1)
             p.setTextBold(true)
             p.setTextSize(28f)
@@ -111,14 +114,10 @@ class MainActivity : AppCompatActivity() {
             p.setTextSize(18f)
             p.printText("WiFi Access Voucher\n")
             p.printText("--------------------------------\n")
-
-            // Plan
             p.setAlignment(0)
             p.setTextSize(22f)
             p.printText("$planName  |  $validity\n")
             p.printText("--------------------------------\n")
-
-            // Code
             p.setAlignment(1)
             p.setTextBold(true)
             p.setTextSize(20f)
@@ -131,12 +130,53 @@ class MainActivity : AppCompatActivity() {
             p.setTextDoubleHeight(false)
             p.setTextBold(false)
             p.printText("--------------------------------\n")
-
-            // Footer — larger, darker
             p.setTextSize(20f)
             p.printText("$date\n")
             p.printText("Thank you - SocialWiFiOnline\n")
+            p.nextLine(3)
+            p.endWork()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
 
+    private fun printCreds(username: String, password: String, planName: String, venueName: String, validity: String) {
+        val p = printer ?: return
+        try {
+            val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+            p.beginWork()
+            p.setDark(5)
+            p.setAlignment(1)
+            p.setTextBold(true)
+            p.setTextSize(28f)
+            p.printText("$venueName\n")
+            p.setTextBold(false)
+            p.setTextSize(18f)
+            p.printText("WiFi Login Credentials\n")
+            p.printText("--------------------------------\n")
+            p.setAlignment(0)
+            p.setTextSize(22f)
+            p.printText("$planName  |  $validity\n")
+            p.printText("--------------------------------\n")
+            p.setAlignment(0)
+            p.setTextSize(20f)
+            p.printText("Username:\n")
+            p.setTextBold(true)
+            p.setTextDoubleWidth(true)
+            p.setTextSize(24f)
+            p.printText("$username\n")
+            p.setTextDoubleWidth(false)
+            p.setTextBold(false)
+            p.setTextSize(20f)
+            p.printText("Password:\n")
+            p.setTextBold(true)
+            p.setTextDoubleWidth(true)
+            p.setTextSize(24f)
+            p.printText("$password\n")
+            p.setTextDoubleWidth(false)
+            p.setTextBold(false)
+            p.printText("--------------------------------\n")
+            p.setTextSize(20f)
+            p.printText("$date\n")
+            p.printText("Thank you - SocialWiFiOnline\n")
             p.nextLine(3)
             p.endWork()
         } catch (e: Exception) { e.printStackTrace() }
