@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 setSupportZoom(false)
+                userAgentString = settings.userAgentString + " SWOPOSNative/1.0"
             }
             addJavascriptInterface(PrintBridge(), "NativePrinter")
             webChromeClient = WebChromeClient()
