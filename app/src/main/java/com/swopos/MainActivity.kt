@@ -14,39 +14,22 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import recieptservice.com.recieptservice.PrinterInterface
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private var printerBinder: IBinder? = null
+    private var printer: PrinterInterface? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            printerBinder = service
+            printer = PrinterInterface.Stub.asInterface(service)
         }
         override fun onServiceDisconnected(name: ComponentName?) {
-            printerBinder = null
+            printer = null
         }
-    }
-
-    private fun callPrinter(method: String, vararg args: Any?) {
-        val binder = printerBinder ?: return
-        try {
-            val clazz = Class.forName("recieptservice.com.recieptservice.PrinterInterface\$Stub")
-            val asInterface = clazz.getMethod("asInterface", IBinder::class.java)
-            val printer = asInterface.invoke(null, binder)
-            val paramTypes = args.map { arg ->
-                when (arg) {
-                    is Boolean -> Boolean::class.javaPrimitiveType!!
-                    is Int -> Int::class.javaPrimitiveType!!
-                    is Float -> Float::class.javaPrimitiveType!!
-                    else -> String::class.java
-                }
-            }.toTypedArray()
-            printer.javaClass.getMethod(method, *paramTypes).invoke(printer, *args)
-        } catch (e: Exception) { e.printStackTrace() }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -90,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
     inner class PrintBridge {
         @JavascriptInterface
-        fun isAvailable(): Boolean = printerBinder != null
+        fun isAvailable(): Boolean = printer != null
 
         @JavascriptInterface
         fun print(code: String, planName: String, venueName: String, validity: String) {
@@ -113,49 +96,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun printVoucher(code: String, planName: String, venueName: String, validity: String) {
-        val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
-        callPrinter("beginWork")
-        callPrinter("setDark", 3)                    // Darker print
+        val p = printer ?: return
+        try {
+            val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
+            p.beginWork()
+            p.setDark(5)
 
-        // Venue name — center, bold, large
-        callPrinter("setAlignment", 1)
-        callPrinter("setTextBold", true)
-        callPrinter("setTextSize", 28f)
-        callPrinter("printText", "$venueName\n")
-        callPrinter("setTextBold", false)
-        callPrinter("setTextSize", 18f)
-        callPrinter("printText", "WiFi Access Voucher\n")
-        callPrinter("printText", "--------------------------------\n")
+            // Header
+            p.setAlignment(1)
+            p.setTextBold(true)
+            p.setTextSize(28f)
+            p.printText("$venueName\n")
+            p.setTextBold(false)
+            p.setTextSize(18f)
+            p.printText("WiFi Access Voucher\n")
+            p.printText("--------------------------------\n")
 
-        // Plan info — left, medium
-        callPrinter("setAlignment", 0)
-        callPrinter("setTextSize", 22f)
-        callPrinter("printText", "$planName\n")
-        callPrinter("setTextSize", 20f)
-        callPrinter("printText", "Duration: $validity\n")
-        callPrinter("printText", "--------------------------------\n")
+            // Plan
+            p.setAlignment(0)
+            p.setTextSize(22f)
+            p.printText("$planName  |  $validity\n")
+            p.printText("--------------------------------\n")
 
-        // Access code — center, big bold
-        callPrinter("setAlignment", 1)
-        callPrinter("setTextSize", 18f)
-        callPrinter("printText", "YOUR ACCESS CODE\n")
-        callPrinter("setTextBold", true)
-        callPrinter("setTextDoubleWidth", true)
-        callPrinter("setTextDoubleHeight", true)
-        callPrinter("setTextSize", 28f)
-        callPrinter("printText", "$code\n")
-        callPrinter("setTextDoubleWidth", false)
-        callPrinter("setTextDoubleHeight", false)
-        callPrinter("setTextBold", false)
+            // Code
+            p.setAlignment(1)
+            p.setTextBold(true)
+            p.setTextSize(20f)
+            p.printText("YOUR ACCESS CODE\n")
+            p.setTextDoubleWidth(true)
+            p.setTextDoubleHeight(true)
+            p.setTextSize(28f)
+            p.printText("$code\n")
+            p.setTextDoubleWidth(false)
+            p.setTextDoubleHeight(false)
+            p.setTextBold(false)
+            p.printText("--------------------------------\n")
 
-        // Footer
-        callPrinter("printText", "--------------------------------\n")
-        callPrinter("setTextSize", 16f)
-        callPrinter("printText", "Enter code at WiFi login page\n")
-        callPrinter("printText", "Issued: $date\n")
-        callPrinter("printText", "Thank you - SocialWiFiOnline\n")
-        callPrinter("nextLine", 3)
-        callPrinter("endWork")
+            // Footer — larger, darker
+            p.setTextSize(20f)
+            p.printText("$date\n")
+            p.printText("Thank you - SocialWiFiOnline\n")
+
+            p.nextLine(3)
+            p.endWork()
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     override fun onBackPressed() {
